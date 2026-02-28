@@ -1,0 +1,21 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model CardEntry {
+  id           String    @id @default(uuid())
+  cardName     String
+  pricePaid    Decimal   @db.Decimal(10, 2)
+  quantity     Int
+  currentPrice Decimal?  @db.Decimal(10, 2)
+  lastChecked  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([cardName])
+}
