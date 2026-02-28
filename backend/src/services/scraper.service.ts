@@ -14,7 +14,7 @@ export const scrapeCardPrice = async (cardName: string, attempt = 1): Promise<nu
 
   try {
     browser = await puppeteer.launch({
-      headless: true,
+      headless: false, // change to false for testing (view scraper)
       args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-blink-features=AutomationControlled']
     });
 
@@ -23,35 +23,61 @@ export const scrapeCardPrice = async (cardName: string, attempt = 1): Promise<nu
     
     // Navigate to SCG search
     const url = `https://starcitygames.com/search/?search_query=${encodeURIComponent(cardName)}`;
-    const response = await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
+    await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
 
-    if (!response || !response.ok()) {
-      throw new ScraperError('NETWORK_ERROR', `Failed to load page: ${response?.status()}`);
-    }
+    // Hawksearch injects results dynamically via Vue.js. 
+    // We must force the scraper to pause for 3 seconds to let the cards render on screen.
+    await new Promise(resolve => setTimeout(resolve, 3000));
 
-    // SCG uses Hawksearch. Wait for product grid or no results.
-    const priceSelector = '.hawk-results-item .hawk-results-item__price';
-    const noResultsSelector = '.hawk-no-results';
+    // Inject JavaScript directly into the browser to hunt for the price using text parsing
+    const result = await page.evaluate((searchName) => {
+      const pageText = document.body.innerText;
+      
+      // 1. Check if the page explicitly says no results
+      if (pageText.includes("0 results for") || pageText.includes("We couldn't find any matches")) {
+        return { error: 'NOT_FOUND' };
+      }
 
-    try {
-      await page.waitForSelector(`${priceSelector}, ${noResultsSelector}`, { timeout: 10000 });
-    } catch (e) {
-      throw new ScraperError('STRUCTURE_CHANGE', 'Could not find price or no-results selector.');
-    }
+      // 2. Find the individual product blocks
+      const items = document.querySelectorAll('.hawk-results-item, article, .product-grid-item');
+      
+      for (const item of Array.from(items)) {
+        // Read all the text inside this specific card's box
+        const itemText = (item as HTMLElement).innerText;
+        
+        // If this box contains our exact card name
+        if (itemText.toLowerCase().includes(searchName.toLowerCase())) {
+          // Regex to find standard price format (e.g., $7.99)
+          const priceMatch = itemText.match(/\$([0-9,]+\.[0-9]{2})/);
+          if (priceMatch && parseFloat(priceMatch[1].replace(',', '')) > 0) {
+            return { price: priceMatch[1] };
+          }
+        }
+      }
 
-    const isNotFound = await page.$(noResultsSelector);
-    if (isNotFound) {
+      // 3. Bruteforce Fallback: find the card name on the page and grab the very next price that appears
+      const nameIndex = pageText.toLowerCase().indexOf(searchName.toLowerCase());
+      if (nameIndex !== -1) {
+        const textAfterName = pageText.substring(nameIndex);
+        const fallbackMatch = textAfterName.match(/\$([0-9,]+\.[0-9]{2})/);
+        if (fallbackMatch && parseFloat(fallbackMatch[1].replace(',', '')) > 0) {
+          return { price: fallbackMatch[1] };
+        }
+      }
+
+      return { error: 'STRUCTURE_CHANGE' };
+    }, cardName); // Pass the cardName into the browser context
+
+    if (result.error === 'NOT_FOUND') {
       throw new ScraperError('NOT_FOUND', `Card not found: ${cardName}`);
     }
 
-    const priceText = await page.$eval(priceSelector, el => el.textContent?.trim() || '');
-    const priceMatch = priceText.match(/\$([0-9,.]+)/);
-
-    if (!priceMatch) {
-      throw new ScraperError('STRUCTURE_CHANGE', 'Failed to parse price from element.');
+    if (result.error === 'STRUCTURE_CHANGE' || !result.price) {
+      throw new ScraperError('STRUCTURE_CHANGE', 'Could not find price element on the loaded page.');
     }
 
-    return parseFloat(priceMatch[1].replace(',', ''));
+    // Strip commas from numbers >= 1,000 before parsing
+    return parseFloat(result.price.replace(/,/g, ''));
 
   } catch (error) {
     logger.warn(`Scrape attempt ${attempt} failed for ${cardName}`, { error: (error as Error).message });
