@@ -43,4 +43,5 @@ A reliable, containerized tracker that calculates cost basis, current value, abs
 ## Future Considerations
 
 1. Better UI 
-2. Finds exact card through collector number and other details 
+2. Finds exact card through collector number and other details
+3. Allow user to deleate or edit entries  
