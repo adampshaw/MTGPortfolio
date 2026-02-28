@@ -44,4 +44,6 @@ A reliable, containerized tracker that calculates cost basis, current value, abs
 
 1. Better UI 
 2. Finds exact card through collector number and other details
-3. Allow user to deleate or edit entries  
+3. Allow user to delete or edit entries
+4. Historical Data Tracking for long term tracking
+5. User Authentication to support multiple users
