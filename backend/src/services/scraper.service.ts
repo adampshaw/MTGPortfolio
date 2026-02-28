@@ -14,7 +14,7 @@ export const scrapeCardPrice = async (cardName: string, attempt = 1): Promise<nu
 
   try {
     browser = await puppeteer.launch({
-      headless: "new",
+      headless: true,
       args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-blink-features=AutomationControlled']
     });
 
