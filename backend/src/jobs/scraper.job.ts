@@ -7,7 +7,7 @@ const prisma = new PrismaClient();
 
 // Run daily at 02:00 AM
 export const initCronJobs = () => {
-  cron.schedule('* * * * *', async () => {
+  cron.schedule(''0 2 * * *', async () => {
     logger.info('Starting daily card price scraping job');
     
     const cards = await prisma.cardEntry.findMany({
