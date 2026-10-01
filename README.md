@@ -42,6 +42,8 @@ A reliable, containerized tracker that calculates cost basis, current value, abs
 
 ## Future Considerations
 
+CURRENT: AWS integration 
+
 1. Better UI 
 2. Finds exact card through collector number and other details
 3. Allow user to delete or edit entries
